@@ -1,0 +1,43 @@
+services:
+
+    # Allows to maintain a different SQL connection for the projector state
+    # store, allowing it to go out of business transactions scope.
+    event_store.runner.projector_state:
+        alias: "goat.runner.default"
+
+    event_store.projector.registry:
+        public: false
+        class: MakinaCorpus\EventStore\Projector\ProjectorRegistry
+
+    event_store.projector.state_store.goat_query:
+        public: false
+        class: MakinaCorpus\EventStore\Bridge\GoatQuery\Projector\State\GoatQueryStateStore
+        arguments:
+            - "@event_store.runner.projector_state"
+
+    event_store.projector.state_store:
+        alias: event_store.projector.state_store.goat_query
+
+    MakinaCorpus\EventStore\Projector\State\StateStore:
+        alias: event_store.projector.state_store
+
+    event_store.projector.worker:
+        public: false
+        class: MakinaCorpus\EventStore\Projector\Worker\DefaultWorker
+        arguments:
+            - "@event_store.projector.registry"
+            - "@event_store.event_store"
+            - "@event_store.projector.state_store"
+
+    MakinaCorpus\EventStore\Projector\Worker\Worker:
+        alias: event_store.projector.worker
+
+    event_store.projector.player:
+        public: false
+        class: MakinaCorpus\EventStore\Projector\Runtime\DefaultRuntimePlayer
+        arguments:
+            - "@event_store.projector.registry"
+            - "@event_store.projector.state_store"
+
+    MakinaCorpus\EventStore\Projector\Runtime\RuntimePlayer:
+        alias: event_store.projector.player

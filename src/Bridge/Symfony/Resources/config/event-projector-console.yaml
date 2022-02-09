@@ -1,0 +1,15 @@
+services:
+
+    MakinaCorpus\EventStore\Projector\Command\ProjectorListCommand:
+        public: false
+        arguments:
+            - "@event_store.projector.registry"
+            - "@event_store.projector.state_store"
+        tags: ["console.command"]
+
+    MakinaCorpus\EventStore\Projector\Command\ProjectorPlayCommand:
+        public: false
+        arguments:
+            - "@event_store.projector.registry"
+            - "@event_store.projector.worker"
+        tags: ["console.command"]

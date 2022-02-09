@@ -1,0 +1,6 @@
+services:
+
+    MakinaCorpus\EventStore\Command\EventStoreQueryCommand:
+        public: false
+        arguments: ["@event_store.event_store"]
+        tags: ["console.command"]
