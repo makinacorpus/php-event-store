@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MakinaCorpus\EventStore;
 
+use MakinaCorpus\Message\Property;
 use MakinaCorpus\Message\BackwardCompat\AggregateMessage;
 use MakinaCorpus\Message\Property\WithPropertiesTrait;
 use Ramsey\Uuid\Uuid;
@@ -135,7 +136,7 @@ final class Event
      */
     public function getAggregateType(): string
     {
-        return $this->aggregateType ?? self::TYPE_DEFAULT;
+        return $this->aggregateType ?? Property::DEFAULT_TYPE;
     }
 
     /**
