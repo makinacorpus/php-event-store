@@ -63,7 +63,7 @@ services:
         public: false
         class: MakinaCorpus\EventStore\Bridge\GoatQuery\GoatQueryEventStore
         # @todo make this configurable, allow table namespace configuration
-        arguments: ["@event_store.runner.event_store"]
+        arguments: ["@goat.runner.event_store"]
         tags:
             - { name: "monolog.logger", channel: "event_store" }
         calls:
