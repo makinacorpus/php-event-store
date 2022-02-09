@@ -65,3 +65,25 @@ For now this is alpha quality. It was just exported from deprecated legacy
 
 Nevertheless, you should now this code is running in production on many
 projects for many years.
+
+# Run tests
+
+A docker environement with various containers for various PHP versions is
+present in the `sys/` folder. For tests to work in all PHP versions, you
+need to run `composer update --prefer-lowest` in case of any failure.
+
+```sh
+composer install
+composer update --prefer-lowest
+cd sys/
+./docker-rebuild.sh # Run this only once
+./docker-run.sh
+```
+
+Additionnaly generate coverage report:
+
+```sh
+./docker-coverage.sh
+```
+
+HTML coverage report will be generated in `coverage` folder.
