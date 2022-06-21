@@ -6,6 +6,7 @@ namespace MakinaCorpus\EventStore;
 
 use MakinaCorpus\Message\BrokenEnvelope;
 use MakinaCorpus\Message\Property;
+use MakinaCorpus\Message\BackwardCompat\AggregateMessage;
 use MakinaCorpus\Normalization\NameMap;
 use MakinaCorpus\Normalization\Serializer;
 use MakinaCorpus\Normalization\NameMap\NameMapAware;
@@ -150,6 +151,11 @@ abstract class AbstractEventStore implements EventStore, LoggerAwareInterface, N
 
         $builder = new DefaultEventBuilder($execute);
         $builder->message($message);
+
+        // Backward compatibility.
+        if ($message instanceof AggregateMessage) {
+            $builder->aggregate($message->getAggregateType(), $message->getAggregateId());
+        }
 
         if ($name) {
             $builder->name($name);
