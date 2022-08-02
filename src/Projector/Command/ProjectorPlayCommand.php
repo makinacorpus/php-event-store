@@ -7,6 +7,7 @@ namespace MakinaCorpus\EventStore\Projector\Command;
 use MakinaCorpus\EventStore\Projector\ProjectorRegistry;
 use MakinaCorpus\EventStore\Projector\ReplayableProjector;
 use MakinaCorpus\EventStore\Projector\Worker\Worker;
+use MakinaCorpus\EventStore\Projector\Worker\WorkerContext;
 use MakinaCorpus\EventStore\Projector\Worker\WorkerEvent;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Exception\InvalidArgumentException;
@@ -47,6 +48,7 @@ final class ProjectorPlayCommand extends Command
             ->addArgument('projector', InputArgument::OPTIONAL, 'Projector identifier or className')
             ->addOption('reset', null, InputOption::VALUE_NONE, 'Reset all projector\'s data and replay it for all events present in EventStore (only available for ReplayableProjector)')
             ->addOption('continue', null, InputOption::VALUE_NONE, 'If set, ignore current projectors state and restart playing erroneous ones.')
+            ->addOption('unlock', null, InputOption::VALUE_NONE, 'Force unlock all projectors before starting.')
             ->addOption('date', null, InputOption::VALUE_REQUIRED, 'Deprecated ignored option.')
         ;
     }
@@ -54,7 +56,7 @@ final class ProjectorPlayCommand extends Command
     /**
      * {@inheritdoc}
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         if ($input->getOption('reset') and $input->getOption('date')) {
             throw new InvalidArgumentException("You can not use both 'reset' and 'date' options, you have to choose one.");
@@ -77,6 +79,8 @@ final class ProjectorPlayCommand extends Command
         } else {
             $this->handleAllProjectors($input, $output);
         }
+
+        return self::SUCCESS;
     }
 
     private function handleSingleProjector(InputInterface $input, OutputInterface $output, string $projectorId): void
@@ -100,18 +104,25 @@ final class ProjectorPlayCommand extends Command
 
         $this->worker->play(
             $projectorId,
-            (bool) $input->getOption('continue')
+            new WorkerContext(
+                (bool) $input->getOption('continue'),
+                (bool) $input->getOption('reset'),
+                (bool) $input->getOption('unlock')
+            )
         );
     }
 
     private function handleAllProjectors(InputInterface $input, OutputInterface $output): void
     {
-
         $progressBar = $this->prepareProgressBar($output);
         $progressBar->start();
 
         $this->worker->playAll(
-            (bool) $input->getOption('continue')
+            new WorkerContext(
+                (bool) $input->getOption('continue'),
+                (bool) $input->getOption('reset'),
+                (bool) $input->getOption('unlock')
+            )
         );
     }
 

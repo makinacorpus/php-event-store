@@ -65,10 +65,11 @@ services:
         # @todo make this configurable, allow table namespace configuration
         arguments: ["@goat.runner.event_store"]
         tags:
-            - { name: "monolog.logger", channel: "event_store" }
+            - { name: "monolog.logger", channel: "eventstore" }
         calls:
             - [setNamespaceMap, ["@event_store.event_store.namespace_map"]]
             - [setNameMap, ["@normalization.name_map"]]
+            - [setLogger, ["@logger"]]
 
     MakinaCorpus\EventStore\EventStore:
         public: false

@@ -28,6 +28,10 @@ services:
             - "@event_store.projector.registry"
             - "@event_store.event_store"
             - "@event_store.projector.state_store"
+        calls:
+            - [setLogger, ["@logger"]]
+        tags:
+            - { name: "monolog.logger", channel: "eventstore" }
 
     MakinaCorpus\EventStore\Projector\Worker\Worker:
         alias: event_store.projector.worker

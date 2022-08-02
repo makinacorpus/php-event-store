@@ -15,7 +15,7 @@ interface StateStore
      *
      * @throws ProjectorLockedError
      */
-    public function lock(string $id): State;
+    public function lock(string $id, bool $force = false): State;
 
     /**
      * Unlock single projector.

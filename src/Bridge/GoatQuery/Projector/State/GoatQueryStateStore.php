@@ -33,9 +33,9 @@ final class GoatQueryStateStore implements StateStore
     /**
      * {@inheritdoc}
      */
-    public function lock(string $id): State
+    public function lock(string $id, bool $force = false): State
     {
-        return $this->runner->runTransaction(function (QueryBuilder $builder) use ($id): State {
+        return $this->runner->runTransaction(function (QueryBuilder $builder) use ($id, $force): State {
             $table = $this->table();
 
             $isLocked = $builder
@@ -47,7 +47,7 @@ final class GoatQueryStateStore implements StateStore
                 ->fetchField()
             ;
 
-            if ($isLocked) {
+            if ($isLocked && !$force) {
                 throw new ProjectorLockedError($id);
             }
 

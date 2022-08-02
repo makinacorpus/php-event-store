@@ -18,6 +18,7 @@ use MakinaCorpus\EventStore\Projector\Projector\CallbackProjector;
 use MakinaCorpus\EventStore\Projector\State\ArrayStateStore;
 use MakinaCorpus\EventStore\Projector\Worker\DefaultWorker;
 use MakinaCorpus\EventStore\Projector\Worker\MissingProjectorError;
+use MakinaCorpus\EventStore\Projector\Worker\WorkerContext;
 use MakinaCorpus\EventStore\Projector\Worker\WorkerEvent;
 use MakinaCorpus\EventStore\Testing\DummyArrayEventStream;
 use PHPUnit\Framework\TestCase;
@@ -37,7 +38,7 @@ class DefaultWorkerTest extends TestCase
         );
 
         self::expectException(MissingProjectorError::class);
-        $worker->playAll();
+        $worker->playAll(new WorkerContext());
     }
 
     public function testNonExistingProjectorRaiseError(): void
@@ -54,7 +55,7 @@ class DefaultWorkerTest extends TestCase
         );
 
         self::expectException(ProjectorDoesNotExistError::class);
-        $worker->play('bar');
+        $worker->play('bar', new WorkerContext());
     }
 
     public function testEmptyEventStreamRaiseBeginAndEndEvent(): void
@@ -91,7 +92,7 @@ class DefaultWorkerTest extends TestCase
             throw new \BadMethodCallException();
         });
 
-        $worker->playAll();
+        $worker->playAll(new WorkerContext());
 
         self::assertSame(1, $beginCount);
         self::assertSame(1, $endCount);
@@ -119,7 +120,7 @@ class DefaultWorkerTest extends TestCase
 
         $stateStore->lock('bar'); 
 
-        $worker->playAll();
+        $worker->playAll(new WorkerContext());
 
         self::assertSame(3, $fooProjector->getOnEventCallCount());
         self::assertSame(0, $barProjector->getOnEventCallCount());
@@ -159,7 +160,7 @@ class DefaultWorkerTest extends TestCase
             'Foo error'
         );
 
-        $worker->playAll();
+        $worker->playAll(new WorkerContext());
 
         self::assertSame(3, $fooProjector->getOnEventCallCount());
         self::assertSame(0, $barProjector->getOnEventCallCount());
@@ -199,7 +200,7 @@ class DefaultWorkerTest extends TestCase
             'Foo error'
         );
 
-        $worker->playAll(true);
+        $worker->playAll(new WorkerContext(true));
 
         self::assertSame(3, $fooProjector->getOnEventCallCount());
         self::assertSame(2, $barProjector->getOnEventCallCount());
@@ -242,7 +243,7 @@ class DefaultWorkerTest extends TestCase
             ++$errorCount;
         });
 
-        $worker->playAll();
+        $worker->playAll(new WorkerContext());
 
         self::assertSame(3, $fooProjector->getOnEventCallCount());
         self::assertSame(1, $barProjector->getOnEventCallCount());
@@ -292,7 +293,7 @@ class DefaultWorkerTest extends TestCase
             $this->createEventAt(new \DateTimeImmutable(), 1)
         );
 
-        $worker->playAll(true);
+        $worker->playAll(new WorkerContext(true));
 
         self::assertSame(1, $fooProjector->getOnEventCallCount());
         self::assertSame(2, $barProjector->getOnEventCallCount());

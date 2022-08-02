@@ -19,22 +19,22 @@ interface Worker
     /**
      * Play event stream for a single projector.
      */
-    public function play(string $id, bool $reset = false, bool $continueOnError = true): void;
+    public function play(string $id, WorkerContext $context): void;
 
     /**
      * Play event stream for a single projector from date.
      */
-    public function playFrom(string $id, \DateTimeInterface $date, bool $continueOnError = true): void;
+    public function playFrom(string $id, \DateTimeInterface $date, WorkerContext $context): void;
 
     /**
      * Play event stream for all projectors.
      */
-    public function playAll(bool $continueOnError = true): void;
+    public function playAll(WorkerContext $context): void;
 
     /**
      * Play event stream for all projectors from date.
      */
-    public function playAllFrom(\DateTimeInterface $date, bool $continueOnError = true): void;
+    public function playAllFrom(\DateTimeInterface $date, WorkerContext $context): void;
 
     /**
      * Reset all data of a single projector.

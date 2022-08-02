@@ -27,12 +27,12 @@ final class ArrayStateStore implements StateStore
     /**
      * {@inheritdoc}
      */
-    public function lock(string $id): State
+    public function lock(string $id, bool $force = false): State
     {
         $existing = $this->latest($id);
 
         if ($existing) {
-            if ($existing->isLocked()) {
+            if ($existing->isLocked() && !$force) {
                 throw new ProjectorLockedError($id);
             }
 

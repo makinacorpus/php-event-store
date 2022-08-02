@@ -13,6 +13,9 @@ use MakinaCorpus\EventStore\Projector\Error\ProjectorNotReplyableError;
 use MakinaCorpus\EventStore\Projector\State\ProjectorLockedError;
 use MakinaCorpus\EventStore\Projector\State\State;
 use MakinaCorpus\EventStore\Projector\State\StateStore;
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
+use Psr\Log\NullLogger;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
@@ -20,11 +23,11 @@ use Symfony\Component\EventDispatcher\EventDispatcherInterface;
  * Default (and propably only) implementation.
  *
  * Interface exists for the need of decorating the worker.
- *
- * @todo Instrument using psr/log.
  */
-final class DefaultWorker implements Worker
+final class DefaultWorker implements Worker, LoggerAwareInterface
 {
+    use LoggerAwareTrait;
+
     private ProjectorRegistry $projectorRegistry;
     private EventStore $eventStore;
     private StateStore $stateStore;
@@ -38,6 +41,7 @@ final class DefaultWorker implements Worker
         $this->projectorRegistry = $projectorRegistry;
         $this->eventStore = $eventStore;
         $this->stateStore = $stateStore;
+        $this->logger = new NullLogger();
     }
 
     /**
@@ -51,33 +55,33 @@ final class DefaultWorker implements Worker
     /**
      * {@inheritdoc}
      */
-    public function play(string $id, bool $reset = false, bool $continueOnError = false): void
+    public function play(string $id, WorkerContext $context): void
     {
-        $this->doPlay([$this->getProjector($id)], null, $continueOnError);
+        $this->doPlay([$this->getProjector($id)], null, $context);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function playFrom(string $id, \DateTimeInterface $from, bool $continueOnError = false): void
+    public function playFrom(string $id, \DateTimeInterface $from, WorkerContext $context): void
     {
-        $this->doPlay([$this->getProjector($id)], $from, $continueOnError);
+        $this->doPlay([$this->getProjector($id)], $from, $context);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function playAll(bool $continueOnError = false): void
+    public function playAll(WorkerContext $context): void
     {
-        $this->doPlay($this->getAllProjectors(), null, $continueOnError);
+        $this->doPlay($this->getAllProjectors(), null, $context);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function playAllFrom(\DateTimeInterface $from, bool $continueOnError = false): void
+    public function playAllFrom(\DateTimeInterface $from, WorkerContext $context): void
     {
-        $this->doPlay($this->getAllProjectors(), $from, $continueOnError);
+        $this->doPlay($this->getAllProjectors(), $from, $context);
     }
 
     /**
@@ -90,6 +94,8 @@ final class DefaultWorker implements Worker
         if ($projector instanceof ReplayableProjector) {
             $projector->reset();
         } else {
+            $this->logger->error("[DefaultWorker] Player '{player}' is not resettable.", ['player' => $id]);
+
             throw new ProjectorNotReplyableError($id);
         }
     }
@@ -102,6 +108,8 @@ final class DefaultWorker implements Worker
         foreach ($this->getAllProjectors() as $projector) {
             if ($projector instanceof ReplayableProjector) {
                 $projector->reset();
+            } else {
+                $this->logger->notice("[DefaultWorker] Player '{player}' is not resettable, ignoring.", ['player' => $projector->getIdentifier()]);
             }
         }
     }
@@ -109,13 +117,17 @@ final class DefaultWorker implements Worker
     /**
      * @param Projector[] $projectors
      */
-    private function doPlay(iterable $projectors, ?\DateTimeInterface $from, bool $continueOnError): void
+    private function doPlay(iterable $projectors, ?\DateTimeInterface $from, WorkerContext $context): void
     {
-        $states = $this->mapProjectors($projectors, $continueOnError);
+        $states = $this->mapProjectors($projectors, $context);
 
         if ($date = $this->findLowestDateFromProjectorList($states, $from)) {
+            $this->logger->notice("[DefaultWorker] Lowest event date is {date}.", ['date' => $date->format(\DateTime::ISO8601)]);
+
             $stream = $this->eventStore->query()->fromDate($date)->execute();
         } else {
+            $this->logger->notice("[DefaultWorker] No lowest event date found, replying everthing.");
+
             $stream = $this->eventStore->query()->execute();
         }
 
@@ -125,6 +137,8 @@ final class DefaultWorker implements Worker
         $this->dispatch(WorkerEvent::begin($streamSize));
 
         if ($streamSize <= 0) {
+            $this->logger->notice("[DefaultWorker] Stream is empty.");
+
             $this->dispatch(WorkerEvent::end($streamSize));
 
             return;
@@ -138,6 +152,8 @@ final class DefaultWorker implements Worker
             $atLeastOne = false;
 
             foreach ($states as $id => $projector) {
+                $this->logger->notice("[DefaultWorker] Playing events for player '{player}'.", ['player' => $id]);
+
                 \assert($projector instanceof ProjectorState);
 
                 try {
@@ -153,6 +169,8 @@ final class DefaultWorker implements Worker
                     $atLeastOne = true;
 
                 } catch (\Throwable $e) {
+                    $this->logger->error("[DefaultWorker] While playing events for player '{player}', error: '{message}'.", ['player' => $id, 'message' => $e->getMessage(), 'exception' => $e]);
+
                     $projector->stopped = true;
 
                     $state = $this->stateStore->exception($id, $event, $e, true);
@@ -172,7 +190,11 @@ final class DefaultWorker implements Worker
             \assert($projector instanceof ProjectorState);
 
             if ($projector->lastEvent) {
+                $this->logger->error("[DefaultWorker] Setting new state for player '{player}'.", ['player' => $id]);
+
                 $this->stateStore->update($id, $projector->lastEvent, true);
+            } else {
+                $this->stateStore->unlock($id);
             }
         }
 
@@ -221,7 +243,7 @@ final class DefaultWorker implements Worker
      *
      * @return array<string, ProjectorState>
      */
-    private function mapProjectors(iterable $projectors, bool $continueOnError): array
+    private function mapProjectors(iterable $projectors, WorkerContext $context): array
     {
         $ret = [];
 
@@ -233,12 +255,23 @@ final class DefaultWorker implements Worker
             try {
                 $state = $this->stateStore->lock($id);
 
-                if ($continueOnError || !$state->isError()) {
+                if ($context->continueOnError() || !$state->isError()) {
                     $ret[$id] = new ProjectorState($projector, $state);
+                } else {
+                    $this->logger->error("[DefaultWorker] Player '{player}' is in an erroneous state, skipping.", ['player' => $id]);
+
+                    $this->stateStore->unlock($id);
                 }
             } catch (ProjectorLockedError $e) {
                 // Do nothing here.
-                // @todo Instrumentation: log that.
+                if ($context->unlock()) {
+                    $this->logger->error("[DefaultWorker] Player '{player}' is locked, unlocking.", ['player' => $id]);
+
+                    $state = $this->stateStore->unlock($id);
+                    $ret[$id] = new ProjectorState($projector, $state);
+                } else {
+                    $this->logger->error("[DefaultWorker] Player '{player}' is locked, skipping.", ['player' => $id]);
+                }
             }
         }
 
