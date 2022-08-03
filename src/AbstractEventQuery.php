@@ -9,6 +9,8 @@ use Ramsey\Uuid\UuidInterface;
 
 abstract class AbstractEventQuery implements EventQuery
 {
+    protected bool $approximateCountPossible = true;
+    protected bool $allowApproximateCount = false;
     protected ?UuidInterface $aggregateId = null;
     protected bool $aggregateAsRoot = false;
     protected array $aggregateTypes = [];
@@ -37,6 +39,47 @@ abstract class AbstractEventQuery implements EventQuery
             throw new \InvalidArgumentException(\sprintf("Aggregate identifier must be a valid UUID string or instanceof of %s: '%s' given", UuidInterface::class, (string)$uuid));
         }
         return $uuid;
+    }
+
+    /**
+     * Is approximate count allowed.
+     *
+     * @internal
+     *   For implementor usage only.
+     */
+    public function isApproximateCountAllowed(): bool
+    {
+        return $this->allowApproximateCount;
+    }
+
+    /**
+     * We consider that approximate count is possible only where there is no
+     * explicit user filters. This matches the following use case:
+     *
+     *  - When paging, we consider the user will not do LIMIT/OFFSET queries
+     *    but WHERE [column] < [some value]. In this use case, having an exact
+     *    count or page count is not necessary for browsing.
+     *
+     *  - As soon as the user asks for filters, the underlaying RDBMS will be
+     *    in position that it can use indexes and the query result for counting
+     *    so it won't do a seq scan on the whole table.
+     *
+     * @internal
+     *   For implementor usage only.
+     */
+    public function isApproximateCountPossible(): bool
+    {
+        return $this->approximateCountPossible;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function allowApproximateCount(bool $toggle = true): EventQuery
+    {
+        $this->allowApproximateCount = $toggle;
+
+        return $this;
     }
 
     /**
@@ -74,6 +117,8 @@ abstract class AbstractEventQuery implements EventQuery
      */
     public function for($aggregateId, bool $includeRoots = false): EventQuery
     {
+        $this->approximateCountPossible = false;
+
         $this->aggregateId = $this->validateUuid($aggregateId);
         $this->aggregateAsRoot = $includeRoots;
 
@@ -85,6 +130,10 @@ abstract class AbstractEventQuery implements EventQuery
      */
     public function failed(?bool $toggle = true): EventQuery
     {
+        if (null !== $toggle) {
+            $this->approximateCountPossible = false;
+        }
+
         $this->failed = $toggle;
 
         return $this;
@@ -96,6 +145,8 @@ abstract class AbstractEventQuery implements EventQuery
     public function withType($typeOrTypes): EventQuery
     {
         \assert(\is_array($typeOrTypes) || \is_string($typeOrTypes));
+
+        $this->approximateCountPossible = false;
 
         $this->aggregateTypes = \array_unique($this->aggregateTypes += \array_values((array)$typeOrTypes));
 
@@ -109,6 +160,8 @@ abstract class AbstractEventQuery implements EventQuery
     {
         \assert(\is_array($nameOrNames) || \is_string($nameOrNames));
 
+        $this->approximateCountPossible = false;
+
         $this->names = \array_unique($this->names += \array_values((array)$nameOrNames));
 
         return $this;
@@ -119,6 +172,8 @@ abstract class AbstractEventQuery implements EventQuery
      */
     public function withSearchName(string $name): EventQuery
     {
+        $this->approximateCountPossible = false;
+
         $this->searchName = $name;
 
         return $this;
@@ -129,6 +184,8 @@ abstract class AbstractEventQuery implements EventQuery
      */
     public function withSearchData($data): EventQuery
     {
+        $this->approximateCountPossible = false;
+
         $this->searchData = $data;
 
         return $this;
@@ -139,6 +196,8 @@ abstract class AbstractEventQuery implements EventQuery
      */
     public function withProperty(string $name, ?string $value = null): EventQuery
     {
+        $this->approximateCountPossible = false;
+
         unset($this->withoutProperties[$name]);
 
         $this->properties[$name][] = $value;
@@ -151,6 +210,8 @@ abstract class AbstractEventQuery implements EventQuery
      */
     public function withoutProperty(string $name): EventQuery
     {
+        $this->approximateCountPossible = false;
+
         if (\array_key_exists($name, $this->properties)) {
             \trigger_error(\sprintf("Query has a value set for this property using withProperty(), call is ignored"), E_USER_WARNING);
         } else {
@@ -165,6 +226,8 @@ abstract class AbstractEventQuery implements EventQuery
      */
     public function toDate(\DateTimeInterface $to): EventQuery
     {
+        $this->approximateCountPossible = false;
+
         if ($this->dateHigherBound) {
             \trigger_error(\sprintf("Query has already betweenDates() set, toDate() call is ignored"), E_USER_WARNING);
         } else {
@@ -179,6 +242,8 @@ abstract class AbstractEventQuery implements EventQuery
      */
     public function fromDate(\DateTimeInterface $from): EventQuery
     {
+        $this->approximateCountPossible = false;
+
         if ($this->dateHigherBound) {
             \trigger_error(\sprintf("Query has already betweenDates() set, fromDate() call is ignored"), E_USER_WARNING);
         } else {
@@ -193,6 +258,8 @@ abstract class AbstractEventQuery implements EventQuery
      */
     public function betweenDates(\DateTimeInterface $from, \DateTimeInterface $to): EventQuery
     {
+        $this->approximateCountPossible = false;
+
         if ($this->dateLowerBound && !$this->dateHigherBound) {
             \trigger_error(\sprintf("Query has already fromDate() set, betweenDates() call overrides it"), E_USER_WARNING);
         }

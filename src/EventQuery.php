@@ -10,6 +10,13 @@ namespace MakinaCorpus\EventStore;
 interface EventQuery
 {
     /**
+     * Allow faster yet approximate count.
+     *
+     * @return $this
+     */
+    public function allowApproximateCount(bool $toggle = true): EventQuery;
+
+    /**
      * Set reverse order search (from latest to oldest).
      *
      * @return $this

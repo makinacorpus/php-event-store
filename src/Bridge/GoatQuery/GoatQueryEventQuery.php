@@ -9,6 +9,7 @@ use Goat\Query\ExpressionRaw;
 use Goat\Query\ExpressionValue;
 use Goat\Query\Query;
 use Goat\Query\SelectQuery;
+use Goat\Query\Expression\CastExpression;
 use MakinaCorpus\EventStore\AbstractEventQuery;
 use MakinaCorpus\EventStore\EventStream;
 use MakinaCorpus\Normalization\NameMap;
@@ -38,6 +39,49 @@ final class GoatQueryEventQuery extends AbstractEventQuery
         }
 
         return new GoatQueryEventStream($select->execute(), $this->eventStore);
+    }
+
+    /**
+     * Count all the things.
+     */
+    public function doCount(): int
+    {
+        if ($this->isApproximateCountAllowed() && $this->isApproximateCountPossible()) {
+            $eventRelation = $this->eventStore->getEventRelation('default'); // @todo
+
+            if ($schema = $eventRelation->getSchema()) {
+                return (int) $this
+                    ->eventStore
+                    ->getRunner()
+                    ->getQueryBuilder()
+                    ->select('pg_class')
+                    ->columnExpression('reltuples::bigint', 'total')
+                    ->whereExpression("oid = ?", new CastExpression($schema . '.' . $eventRelation->getName(), 'regclass'))
+                    ->execute()
+                    ->fetchField()
+                ;
+            }
+
+            return $this
+                ->eventStore
+                ->getRunner()
+                ->getQueryBuilder()
+                ->select('pg_class')
+                ->columnExpression('reltuples::bigint', 'total')
+                ->where('relname', $eventRelation->getName())
+                ->execute()
+                ->fetchField()
+            ;
+        }
+
+        return $this
+            ->createSelectQuery()
+            ->removeAllColumns()
+            ->removeAllOrder()
+            ->columnExpression('count(*)', 'total')
+            ->execute()
+            ->fetchField()
+        ;
     }
 
     /**

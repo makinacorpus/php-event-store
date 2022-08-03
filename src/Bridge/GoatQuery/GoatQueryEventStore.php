@@ -442,13 +442,6 @@ final class GoatQueryEventStore extends AbstractEventStore
             );
         }
 
-        return $query
-            ->createSelectQuery($query)
-            ->removeAllColumns()
-            ->removeAllOrder()
-            ->columnExpression('count(event.position)', 'total')
-            ->execute()
-            ->fetchField()
-        ;
+        return $query->doCount();
     }
 }
