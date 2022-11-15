@@ -640,7 +640,7 @@ abstract class AbstractEventStore implements EventStore, LoggerAwareInterface, N
             if ($output) {
                 $output .= "\n";
             }
-            $output .= \sprintf("%s: %s\n", \get_class($exception), $exception->getMessage());
+            $output .= \sprintf("%s: %s in %s(%s)\n", \get_class($exception), $exception->getMessage(), $exception->getFile(), $exception->getLine());
             $output .= $exception->getTraceAsString();
         } while ($exception = $exception->getPrevious());
 
